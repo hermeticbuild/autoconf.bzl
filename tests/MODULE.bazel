@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+
+module(name = "autoconf_tests")
+
+bazel_dep(name = "autoconf.bzl", version = "0.0.0")
+local_path_override(
+    module_name = "autoconf.bzl",
+    path = "..",
+)
+
+bazel_dep(name = "autoconf_examples", version = "")
+local_path_override(
+    module_name = "autoconf_examples",
+    path = "../examples",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "llvm", version = "0.8.24")
+
+register_toolchains("@llvm//toolchain:all")
+
+bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2")

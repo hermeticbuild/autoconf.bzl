@@ -1,0 +1,67 @@
+# Shared defaults from hermeticbuild/hermetic-llvm.
+common --enable_platform_specific_config
+common --experimental_fetch_all_coverage_outputs
+common --heap_dump_on_oom
+common --incompatible_enforce_starlark_utf8=error
+common --incompatible_modify_execution_info_additive
+common --incompatible_strict_action_env
+common --module_mirrors="https://bcr.cloudflaremirrors.com"
+common --nobuild_runfile_links
+common --noexperimental_check_external_repository_files
+common --nosandbox_default_allow_network
+common --repo_env="JAVA_HOME=../bazel_tools/jdk"
+common --reuse_sandbox_directories
+common --show_result=20
+common --test_output=errors
+
+# Let rules authors use the dependency versions selected by their root module.
+common --check_direct_dependencies=off
+
+# Never discover toolchains from the host machine.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
+common --repo_env=BAZEL_DO_NOT_DETECT_SWIFT_TOOLCHAIN=1
+
+common --experimental_cc_static_library
+common --experimental_platform_in_output_dir
+common --incompatible_config_setting_private_default_visibility
+
+common:ci --announce_rc
+common:ci --color=yes
+common:ci --show_timestamps
+test:ci --test_summary=terse
+
+common:release -c opt
+common:release --strip=always
+common:release --stripopt=--strip-all
+common:release --features=thin_lto
+common:release --features=no_exceptions
+common:release --features=no_rtti
+common:release --features=omit_frame_pointer
+common:release --features=-dynamic_link_msvcrt
+common:release --features=static_link_msvcrt
+common:release --dynamic_mode=off
+common:release --extra_toolchains=@llvm//toolchain:all
+
+# Share remote caching and build events; opt into execution with --config=remote.
+common --remote_header=x-buildbuddy-api-key=4jtaxdhxtyu4ylxdEwI7
+common --bes_header=x-buildbuddy-api-key=4jtaxdhxtyu4ylxdEwI7
+common --bes_results_url=https://app.buildbuddy.io/invocation/
+common --bes_backend=grpcs://remote.buildbuddy.io
+common --experimental_remote_downloader=grpcs://remote.buildbuddy.io
+common --remote_cache=grpcs://remote.buildbuddy.io
+common:remote --remote_executor=grpcs://remote.buildbuddy.io
+common:remote --extra_execution_platforms=@llvm//:rbe_platform
+common:remote --jobs=800
+common:remote --rewind_lost_inputs
+common --grpc_keepalive_time=30s
+common --remote_cache_compression
+common --remote_download_toplevel
+common --remote_timeout=120
+common --noexperimental_throttle_remote_action_building
+common --experimental_remote_execution_keepalive
+
+build --experimental_allow_map_directory
+
+# Keep this last so local settings can override shared defaults.
+try-import %workspace%/.bazelrc.user

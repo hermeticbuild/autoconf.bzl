@@ -1,0 +1,16 @@
+# CI-only settings, loaded before the module's .bazelrc as in hermetic-llvm.
+common --config=ci
+common --config=remote
+common --extra_execution_platforms=//platforms:rbe
+
+# Persist dependency downloads between CI runs.
+common --repository_cache=~/.cache/bazel-repo
+common --repo_contents_cache=~/.cache/bazel-repo/contents
+
+common --remote_download_outputs=minimal
+
+# Test wrappers run in the Linux image, even when the Bazel client is Windows.
+test --test_env=PATH=/usr/bin:/bin
+
+# Preserve machine-readable probe comparisons in the uploaded CI artifacts.
+test --remote_download_regex=.*test[.]outputs.*

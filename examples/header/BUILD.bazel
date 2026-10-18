@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@autoconf.bzl//:autoconf.bzl", "assemble_test", "autoconf", "autoconf_header", "compile_test", "link_test")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+autoconf(
+    name = "features",
+    tests = {
+        "HAVE_INT128": compile_test(
+            "int f(void) { __int128 x = 1; return (int)x; }",
+            flags = ["-Werror"],
+        ),
+        "HAVE_STDINT": compile_test("#include <stdint.h>\nuint32_t f(void) { return UINT32_MAX; }"),
+        "HAVE_IMPOSSIBLE": compile_test("#error deliberately unavailable"),
+        "HAVE_ASSEMBLER": assemble_test(".text\n"),
+        "HAVE_LINK": link_test("int main(void) { return 0; }"),
+    },
+    visibility = ["//visibility:public"],
+)
+
+autoconf_header(
+    name = "config",
+    probes = ":features",
+)
+
+cc_test(
+    name = "config_test",
+    srcs = [
+        "main.c",
+        ":config",
+    ],
+)

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:package_info.bzl", "package_info")
+
+exports_files([
+    ".buildifier.json",
+    "LICENSE",
+    "MODULE.bazel",
+    "autoconf.bzl",
+])
+
+bzl_library(
+    name = "autoconf",
+    srcs = ["autoconf.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//private:autoconf_bzl",
+        "//private:payload_bzl",
+    ],
+)
+
+license(
+    name = "license",
+    copyright_notice = "Copyright 2026 The autoconf.bzl Authors",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+)
+
+package_info(
+    name = "package_info",
+    package_name = "autoconf.bzl",
+    package_url = "https://github.com/hermeticbuild/autoconf.bzl",
+    package_version = "0.0.0",
+)

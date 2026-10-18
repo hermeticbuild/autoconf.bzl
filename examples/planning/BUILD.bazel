@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load(":planning.bzl", "planned_build")
+
+cc_binary(
+    name = "planner",
+    srcs = ["planner.cc"],
+    copts = ["-std=c++17"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+planned_build(
+    name = "converged",
+    stages = 3,
+)
+
+planned_build(
+    name = "too_short",
+    stages = 1,
+    tags = ["manual"],
+)
+
+cc_test(
+    name = "planning_test",
+    srcs = ["check.cc"],
+    copts = ["-std=c++17"],
+    data = [
+        ":converged",
+        ":insufficient_state",
+    ],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+filegroup(
+    name = "insufficient_state",
+    srcs = [":too_short"],
+    output_group = "state",
+)
+
+bzl_library(
+    name = "planning_bzl",
+    srcs = ["planning.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+        "@rules_cc//cc:find_cc_toolchain_bzl",
+    ],
+)

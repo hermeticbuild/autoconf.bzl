@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@autoconf.bzl//:autoconf.bzl", "autoconf", "compile_test")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load(":build.bzl", "selected_application")
+
+[autoconf(
+    name = branch,
+    tests = {"HAVE_CAPABILITY": compile_test(
+        "#if !CONTROL\n#error unavailable\n#endif\nint f(void) { return 1; }",
+        flags = ["-DCONTROL=" + value],
+    )},
+) for branch, value in [
+    ("supported", "1"),
+    ("unsupported", "0"),
+]]
+
+[selected_application(
+    name = branch + "_app",
+    disabled = "disabled.c",
+    enabled = "enabled.c",
+    main = "main.c",
+    probes = ":" + branch,
+) for branch in [
+    "supported",
+    "unsupported",
+]]
+
+cc_test(
+    name = "selection_test",
+    srcs = ["check.cc"],
+    copts = ["-std=c++17"],
+    data = [
+        ":supported_app",
+        ":unsupported_app",
+    ],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+exports_files([
+    "enabled.c",
+    "disabled.c",
+    "main.c",
+])
+
+bzl_library(
+    name = "build_bzl",
+    srcs = ["build.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+        "@rules_cc//cc:action_names_bzl",
+        "@rules_cc//cc:find_cc_toolchain_bzl",
+        "@rules_cc//cc/common",
+    ],
+)

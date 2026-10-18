@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@autoconf.bzl//:autoconf.bzl", "autoconf_header")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load(":configure.bzl", "PACKAGE_FLAGS", "ogg_probes", "ogg_types")
+load(":native_test.bzl", "native_reference_test")
+
+cc_binary(
+    name = "measure",
+    srcs = ["measure.cc"],
+    copts = ["-std=c++17"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+ogg_probes(name = "features")
+
+autoconf_header(
+    name = "config",
+    probes = ":features",
+)
+
+ogg_types(
+    name = "types",
+    probes = ":features",
+)
+
+cc_library(
+    name = "headers",
+    hdrs = [
+        ":types",
+    ],
+    includes = ["include"],
+    deps = ["@libogg//:headers"],
+)
+
+cc_library(
+    name = "ogg",
+    srcs = [
+        "@libogg//:src/bitwise.c",
+        "@libogg//:src/crctable.h",
+        "@libogg//:src/framing.c",
+    ],
+    hdrs = [":config"],
+    copts = PACKAGE_FLAGS,
+    defines = ["HAVE_CONFIG_H"],
+    includes = ["."],
+    deps = [":headers"],
+)
+
+cc_test(
+    name = "smoke_test",
+    srcs = ["smoke.c"],
+    deps = [":ogg"],
+)
+
+cc_test(
+    name = "bitwise_test",
+    srcs = ["@libogg//:src/bitwise.c"],
+    copts = PACKAGE_FLAGS + ["-D_V_SELFTEST"],
+    deps = [":headers"],
+)
+
+cc_test(
+    name = "framing_test",
+    srcs = [
+        ":config",
+        "@libogg//:src/crctable.h",
+        "@libogg//:src/framing.c",
+    ],
+    copts = PACKAGE_FLAGS + [
+        "-D_V_SELFTEST",
+        "-DHAVE_CONFIG_H",
+    ],
+    includes = ["."],
+    deps = [":headers"],
+)
+
+exports_files(["upstream.BUILD.bazel"])
+
+filegroup(
+    name = "spec",
+    srcs = select({
+        "@platforms//os:macos": [":features_macos"],
+        "@platforms//os:linux": [":features_linux"],
+    }),
+    output_group = "spec",
+)
+
+cc_binary(
+    name = "native_reference",
+    srcs = ["native_reference.cc"],
+    copts = ["-std=c++17"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+native_reference_test(
+    name = "native_reference_test",
+    timeout = "long",
+    data = [
+        ":features",
+        ":spec",
+        "@libogg//:source_tree",
+    ],
+    probes = ":features",
+)
+
+bzl_library(
+    name = "configure_bzl",
+    srcs = ["configure.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+    ],
+)
+
+bzl_library(
+    name = "native_test_bzl",
+    srcs = ["native_test.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+    ],
+)

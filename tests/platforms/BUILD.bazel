@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Same Ubuntu 22.04 multiarchitecture image as LLVM's RBE platform, mirrored
+# away from Docker Hub's token endpoint and pinned by OCI index digest.
+_IMAGE = "docker://mirror.gcr.io/library/ubuntu@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956"
+
+platform(
+    name = "rbe",
+    exec_properties = {"container-image": _IMAGE},
+    parents = ["@llvm//:rbe_platform"],
+    visibility = ["//visibility:public"],
+)
+
+platform(
+    name = "rbe_linux_x86_64",
+    exec_properties = {"container-image": _IMAGE},
+    parents = ["@llvm//:rbe_linux_x86_64"],
+    visibility = ["//visibility:public"],
+)
+
+platform(
+    name = "rbe_linux_aarch64",
+    exec_properties = {"container-image": _IMAGE},
+    parents = ["@llvm//:rbe_linux_aarch64"],
+    visibility = ["//visibility:public"],
+)

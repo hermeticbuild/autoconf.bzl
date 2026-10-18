@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "configure",
+    "COPYING",
+    "src/bitwise.c",
+    "src/framing.c",
+    "src/crctable.h",
+])
+
+cc_library(
+    name = "headers",
+    hdrs = [
+        "include/ogg/ogg.h",
+        "include/ogg/os_types.h",
+    ],
+    includes = ["include"],
+)
+
+filegroup(
+    name = "source_tree",
+    srcs = glob(
+        ["**"],
+        exclude = ["BUILD.bazel"],
+    ),
+)

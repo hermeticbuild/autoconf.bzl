@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: concurrency-group::${{ github.workflow }}::${{ github.event.pull_request.number > 0 && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}${{ github.ref_name == 'main' && format('::{0}', github.run_id) || ''}}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    name: Test with RBE on ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v6
+
+      # PRs restore caches published by main without saving PR-scoped copies.
+      - name: Restore Bazel repository cache
+        id: bazel-repository-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazel-repo
+          key: bazel-repository-v2-${{ matrix.os }}-9.3.0-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'tests/MODULE.bazel', 'tests/MODULE.bazel.lock', 'examples/MODULE.bazel', 'examples/MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-repository-v2-${{ matrix.os }}-9.3.0-
+
+      - name: bazel build //...
+        run: |
+          bazel \
+            --bazelrc=$GITHUB_WORKSPACE/.github/workflows/ci.bazelrc \
+            --bazelrc=.bazelrc \
+            build //... @autoconf.bzl//... @autoconf_examples//...
+
+      - name: bazel test //...
+        run: |
+          bazel \
+            --bazelrc=$GITHUB_WORKSPACE/.github/workflows/ci.bazelrc \
+            --bazelrc=.bazelrc \
+            test //...
+
+      - name: Upload test logs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}
+          path: tests/bazel-testlogs/
+
+      - name: Stop Bazel before saving repository cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bazel-repository-cache.outputs.cache-hit != 'true'
+        run: bazel --bazelrc=$GITHUB_WORKSPACE/.github/workflows/ci.bazelrc --bazelrc=.bazelrc shutdown
+
+      - name: Save Bazel repository cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bazel-repository-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel-repo
+          key: ${{ steps.bazel-repository-cache.outputs.cache-primary-key }}
+
+  test_windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target_platform: '@llvm//platforms:linux_x86_64'
+          - os: windows-11-arm
+            target_platform: '@llvm//platforms:linux_aarch64'
+    runs-on: ${{ matrix.os }}
+    name: Test Linux targets with RBE from ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: tests
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      # Like hermetic-llvm, Windows uses the CI RC and disables repository caches.
+      # Our execution helpers require POSIX, so these jobs target Linux on RBE.
+      - name: bazel build //...
+        run: |
+          bazel \
+            --bazelrc=$GITHUB_WORKSPACE/.github/workflows/ci.bazelrc \
+            --bazelrc=.bazelrc \
+            --noexperimental_remote_repo_contents_cache \
+            build \
+            --repository_cache= \
+            --repo_contents_cache= \
+            --jobs=100 \
+            --platforms=${{ matrix.target_platform }} \
+            //... @autoconf.bzl//... @autoconf_examples//...
+
+      - name: bazel test //...
+        run: |
+          bazel \
+            --bazelrc=$GITHUB_WORKSPACE/.github/workflows/ci.bazelrc \
+            --bazelrc=.bazelrc \
+            --noexperimental_remote_repo_contents_cache \
+            test \
+            --repository_cache= \
+            --repo_contents_cache= \
+            --jobs=100 \
+            --platforms=${{ matrix.target_platform }} \
+            //...
+
+      - name: Upload test logs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}
+          path: tests/bazel-testlogs/
+
+  test_macos:
+    runs-on: macos-latest
+    name: Test locally on macOS
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v6
+      - name: bazel build //...
+        run: bazel --bazelrc=.bazelrc build //... @autoconf.bzl//... @autoconf_examples//...
+      - name: bazel test //...
+        run: bazel --bazelrc=.bazelrc test //...
+      - name: Upload test logs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-macos
+          path: tests/bazel-testlogs/

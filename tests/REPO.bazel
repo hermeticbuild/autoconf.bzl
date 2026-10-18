@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+
+repo(default_package_metadata = ["@autoconf.bzl//:license", "@autoconf.bzl//:package_info"])

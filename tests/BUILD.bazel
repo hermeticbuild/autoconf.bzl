@@ -1,0 +1,338 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@autoconf.bzl//:autoconf.bzl", "autoconf", "command_test", "compile_test")
+load("@autoconf_examples//selection:build.bzl", "selected_application")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@buildifier_prebuilt//:rules.bzl", "buildifier_test")
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load(":analysis_tests.bzl", "dependency_test", "failure_tests")
+load(":cache.bzl", "cache_input")
+load(":failures.bzl", "invalid_wire")
+load(":variants.bzl", "cache_mode", "configured_target")
+load(":wire_test.bzl", "wire_test")
+
+cc_test(
+    name = "core_test",
+    srcs = ["core_test.cc"],
+    copts = ["-std=c++17"],
+    data = [":tool"],
+    deps = ["@autoconf.bzl//private:runner_lib"],
+)
+
+cc_binary(
+    name = "tool",
+    srcs = ["tool.cc"],
+    copts = ["-std=c++17"],
+)
+
+wire_test(name = "wire_test")
+
+autoconf(
+    name = "duplicate_alias",
+    tags = ["manual"],
+    tests = {},
+    tools = {
+        ":tool": "same",
+        ":cache_probe": "same",
+    },
+)
+
+autoconf(
+    name = "not_executable",
+    tags = ["manual"],
+    tests = {},
+    tools = {"core_test.cc": "plain"},
+)
+
+autoconf(
+    name = "missing_alias",
+    tags = ["manual"],
+    tests = {"X": command_test("missing")},
+)
+
+autoconf(
+    name = "bad_schema",
+    tags = ["manual"],
+    tests = {"X": {"kind": "unknown"}},
+)
+
+autoconf(
+    name = "bad_codes",
+    tags = ["manual"],
+    tests = {"X": compile_test(
+        "int x;",
+        failure_codes = [0],
+    )},
+)
+
+autoconf(
+    name = "mismatched_toolchain",
+    features = ["thin_lto"],
+    previous = "@autoconf_examples//header:features",
+    tags = ["manual"],
+    tests = {},
+)
+
+invalid_wire(
+    name = "bad_bool",
+    markers = ["X=bool=true"],
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "bad_int",
+    markers = ["X=int=01"],
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "bad_type",
+    markers = ["X=unknown=1"],
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "duplicate_marker",
+    markers = [
+        "X=bool=1",
+        "X=int=2",
+    ],
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "unsafe_marker",
+    markers = ["X=string=../escape"],
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "payload_gap",
+    markers = ["00000001=7b7d"],
+    payload = True,
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "payload_hex",
+    markers = ["00000000=zz"],
+    payload = True,
+    tags = ["manual"],
+)
+
+invalid_wire(
+    name = "payload_duplicate",
+    markers = [
+        "00000000=7b",
+        "00000000=7d",
+    ],
+    payload = True,
+    tags = ["manual"],
+)
+
+config_setting(
+    name = "alternate_cache_input",
+    flag_values = {":cache_mode": "alternate"},
+)
+
+cache_input(
+    name = "cache_input",
+    value = select({
+        ":alternate_cache_input": "16",
+        "//conditions:default": "8",
+    }),
+)
+
+cc_binary(
+    name = "cache_probe",
+    srcs = ["cache_probe.cc"],
+    copts = ["-std=c++17"],
+    data = [":cache_input"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+autoconf(
+    name = "cache_first",
+    data = [":cache_input"],
+    tests = {"CONTROL": command_test(
+        "measure",
+        failure_codes = [],
+        result = "int",
+    )},
+    tools = {":cache_probe": "measure"},
+)
+
+autoconf(
+    name = "cache_second",
+    previous = ":cache_first",
+    tests = {"HAVE_CAPABILITY": compile_test("_Static_assert({result:CONTROL} == 8, \"control\");")},
+)
+
+selected_application(
+    name = "cache_app",
+    disabled = "@autoconf_examples//selection:disabled.c",
+    enabled = "@autoconf_examples//selection:enabled.c",
+    main = "@autoconf_examples//selection:main.c",
+    probes = ":cache_second",
+)
+
+cache_mode(
+    name = "cache_mode",
+    build_setting_default = "default",
+)
+
+failure_tests(name = "failures")
+
+invalid_wire(
+    name = "planning_bound",
+    planning = True,
+    tags = ["manual"],
+)
+
+configured_target(
+    name = "default_cache_app",
+    target = ":cache_app",
+)
+
+configured_target(
+    name = "alternate_cache_app",
+    mode = "alternate",
+    target = ":cache_app",
+)
+
+configured_target(
+    name = "default_answers",
+    target = ":cache_second",
+)
+
+configured_target(
+    name = "alternate_answers",
+    mode = "alternate",
+    target = ":cache_second",
+)
+
+configured_target(
+    name = "baseline_features",
+    target = "@autoconf_examples//header:features",
+)
+
+configured_target(
+    name = "lto_features",
+    target = "@autoconf_examples//header:features",
+    thin_lto = True,
+)
+
+filegroup(
+    name = "baseline_spec",
+    srcs = [":baseline_features"],
+    output_group = "spec",
+)
+
+filegroup(
+    name = "lto_spec",
+    srcs = [":lto_features"],
+    output_group = "spec",
+)
+
+cc_test(
+    name = "configuration_test",
+    srcs = ["inspect.cc"],
+    args = [
+        "$(rootpath :default_answers)",
+        "$(rootpath :default_cache_app)",
+        "$(rootpath :alternate_answers)",
+        "$(rootpath :alternate_cache_app)",
+        "$(rootpath :baseline_spec)",
+        "$(rootpath :lto_spec)",
+        "$(rootpath :lto_features)",
+    ],
+    copts = ["-std=c++17"],
+    data = [
+        ":alternate_answers",
+        ":alternate_cache_app",
+        ":baseline_spec",
+        ":default_answers",
+        ":default_cache_app",
+        ":lto_features",
+        ":lto_spec",
+    ],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+test_suite(
+    name = "examples",
+    tests = [
+        "@autoconf_examples//:check",
+        "@autoconf_examples//libogg:native_reference_test",
+    ],
+)
+
+cc_binary(
+    name = "copy",
+    srcs = ["copy.cc"],
+    copts = ["-std=c++17"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+buildifier_test(
+    name = "format_test",
+    add_tables = "@autoconf.bzl//:.buildifier.json",
+    exclude_patterns = [
+        "./.git/*",
+        "./.bazelbsp/*",
+        "./bazel-*",
+        "./examples/bazel-*",
+        "./tests/bazel-*",
+    ],
+    mode = "check",
+    no_sandbox = True,
+    tags = ["no-remote-exec"],
+    # This unsandboxed check runs on the client, not its cross-compilation target.
+    target_compatible_with = HOST_CONSTRAINTS,
+    workspace = "@autoconf.bzl//:MODULE.bazel",
+)
+
+dependency_test(
+    name = "dependency_test",
+    data = ":cache_input",
+    first = ":cache_first",
+    second = ":cache_second",
+    tool = ":cache_probe",
+)
+
+bzl_library(
+    name = "analysis_tests_bzl",
+    srcs = ["analysis_tests.bzl"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+    ],
+)
+
+bzl_library(
+    name = "cache_bzl",
+    srcs = ["cache.bzl"],
+)
+
+bzl_library(
+    name = "failures_bzl",
+    srcs = ["failures.bzl"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+        "@autoconf_examples//planning:planning_bzl",
+    ],
+)
+
+bzl_library(
+    name = "variants_bzl",
+    srcs = ["variants.bzl"],
+)
+
+bzl_library(
+    name = "wire_test_bzl",
+    srcs = ["wire_test.bzl"],
+    deps = [
+        "@autoconf.bzl//:autoconf",
+    ],
+)

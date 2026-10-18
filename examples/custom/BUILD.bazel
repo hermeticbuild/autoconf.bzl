@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@autoconf.bzl//:autoconf.bzl", "autoconf", "autoconf_header", "command_test", "compile_test")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_binary(
+    name = "measure",
+    srcs = ["measure.cc"],
+    copts = ["-std=c++17"],
+    data = ["family.txt"],
+    deps = ["@autoconf.bzl//private:runtime"],
+)
+
+autoconf(
+    name = "abi",
+    tests = {
+        "Z_FIRST": command_test(
+            "abi",
+            [
+                "bool",
+                "{work}",
+                "{cc}",
+                "{compile_flags}",
+            ],
+            failure_codes = [2],
+        ),
+        "A_ORDERED": compile_test("#define true 1\n#define false 0\n_Static_assert({result:Z_FIRST}, \"ordered\");"),
+        "TOOL_RUNFILES_OK": command_test(
+            "abi",
+            [
+                "bool",
+                "{work}",
+                "{cc}",
+                "{compile_flags}",
+            ],
+            failure_codes = [2],
+        ),
+        "SIZEOF_LONG": command_test(
+            "abi",
+            [
+                "sizeof-long",
+                "{work}",
+                "{cc}",
+                "{compile_flags}",
+            ],
+            failure_codes = [],
+            result = "int",
+        ),
+        "COMPILER_FAMILY": command_test(
+            "abi",
+            [
+                "family",
+                "{work}",
+                "{cc}",
+                "{compile_flags}",
+            ],
+            failure_codes = [],
+            result = "string",
+        ),
+    },
+    tools = {":measure": "abi"},
+)
+
+autoconf(
+    name = "checked",
+    previous = ":abi",
+    tests = {"HAVE_EXPECTED_LONG": compile_test("_Static_assert(sizeof(long) == {result:SIZEOF_LONG}, \"ABI\");")},
+)
+
+autoconf_header(
+    name = "config",
+    probes = ":checked",
+)
+
+cc_test(
+    name = "custom_test",
+    srcs = [
+        "main.c",
+        ":config",
+    ],
+)

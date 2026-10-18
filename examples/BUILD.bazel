@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+
+test_suite(
+    name = "check",
+    tests = [
+        "//custom:custom_test",
+        "//header:config_test",
+        "//libogg:bitwise_test",
+        "//libogg:framing_test",
+        "//libogg:smoke_test",
+        "//planning:planning_test",
+        "//selection:selection_test",
+    ],
+)
